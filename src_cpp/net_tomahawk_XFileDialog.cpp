@@ -33,12 +33,6 @@
 #include "XPThumbnailDialog.h" 
 #include "VistaThumbnailDialogHandler.h" 
 
-// Windows SDK header files in 
-// e.g. d:\Windows\Microsoft Sdks\Windows\v6.0A\Include
-#include "ShFolder.h"
-#include "ShObjIdl.h" 
-#include "KnownFolders.h"
-
 // JNI header 
 #include <jawt.h>
 #include <jawt_md.h>
