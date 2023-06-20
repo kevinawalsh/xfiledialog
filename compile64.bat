@@ -17,7 +17,6 @@ del src_java\net\tomahawk\*~
 rem Compile java code
 javac src_java\net\tomahawk\*.java
 javac -cp .\src_java helloworld.java
-javac -cp .\src_java helloapplet.java
 
 rem Package jar
 cd src_java

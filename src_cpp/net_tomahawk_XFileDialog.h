@@ -18,7 +18,7 @@ JNIEXPORT void JNICALL Java_net_tomahawk_XFileDialog_initWithWindowTitle
 /*
  * Class:     net_tomahawk_XFileDialog
  * Method:    initWithJAWT
- * Signature: (Ljava/awt/Component;Ljava/lang/String;)V
+ * Signature: (Ljava/awt/Frame;Ljava/lang/String;)V
  */
 JNIEXPORT void JNICALL Java_net_tomahawk_XFileDialog_initWithJAWT
   (JNIEnv *, jobject, jobject, jstring);

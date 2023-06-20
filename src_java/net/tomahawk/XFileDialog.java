@@ -3,7 +3,6 @@ import java.io.*;
 import javax.swing.*; 
 import java.awt.*; 
 import java.awt.event.*; 
-import java.applet.*; 
 
 
 // to add patch from Jose 
@@ -13,10 +12,7 @@ import java.applet.*;
 //
 public class XFileDialog
 {
-    //XFileDialog's parent could be a Frame or an Applet, 
-    // therefore, we have to use Component instead of Frame here. 
-
-    private Component parent=null; 
+    private Frame parent=null; 
     private static JFileChooser failsafe; 
 
    // the five basic functions provided in XFileDialog  
@@ -45,7 +41,7 @@ public class XFileDialog
 
 
     public native void initWithWindowTitle(String windowtitle); 
-    public native void initWithJAWT(Component c, String javahome); 
+    public native void initWithJAWT(Frame c, String javahome); 
 
     private String nativefilters=""; 
 
@@ -420,26 +416,6 @@ public class XFileDialog
 
     }
 
-public XFileDialog(Applet parent)
-    {
-
-	String windowtitle = null; 
-	this.parent= parent; 
-
-	initClass(); 
-
-	if(parent!=null) parent.setIgnoreRepaint(false);  // prevent error
-
-	// solution2: find the correct window handele with jawt/awt 
-	if(nativeEnabled) 
-	{
-	String javahome= System.getProperty("java.home"); 
-	initWithJAWT(parent, javahome); 
-	trace("JNI>>: Init dialog with JAWT for Applet/Japplet"); 
-	}
-
-    }
-
    public XFileDialog(String windowtitle)
     {
 	initClass(); 
@@ -513,7 +489,7 @@ private void setJavaSelectionMode(Mode mode)
 		}
 	}
 
-private void showJavaDialog(Component component, Mode mode) {
+private void showJavaDialog(Frame component, Mode mode) {
 		switch (mode) {
 			case LOAD_FILE:
 			case LOAD_FILES:
