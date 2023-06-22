@@ -1,1 +1,1 @@
-java -cp .;xfiledialog.jar helloworld
+java -cp xfiledialog.jar; Example

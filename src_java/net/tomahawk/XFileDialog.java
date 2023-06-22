@@ -1,507 +1,515 @@
 package net.tomahawk; 
-import java.io.*; 
-import javax.swing.*; 
-import java.awt.*; 
-import java.awt.event.*; 
 
+import java.awt.Window;
+import java.awt.Dialog;
+import java.awt.Frame;
+import java.awt.FileDialog;
+import java.io.File;
+import java.io.FilenameFilter;
+import java.util.ArrayList;
 
-// to add patch from Jose 
-// 1. the new extensionsfilter has been added. 
-// 2. get should return files directly 
-//
-//
+/**
+ * XFileDialog provides a file load/save dialog using a native UI on Windows,
+ * MacOS, and Linux platforms. For Windows, it relies on JNI and a native C++
+ * dll to provide access to the underlying Windows CFileDialog load/save dialog.
+ * On other platforms, it falls back to java.awt.FileDialog, which invokes the
+ * native toolkits on MacOS and Linux.
+ *
+ * The interface for XFileDialog is based on java.awt.FileDialog, so it should
+ * be a drop-in replacement for simple cases. More advanced features of
+ * FileDialog are not supported, however.
+ *
+ * XFileDialog objects are not intnded to be thread-safe or reusable. Multiple
+ * threads should not concurrently call methods on the same XFileDialog object,
+ * XFileDialog.setVisible(true) can only be called once.
+ *
+ * Support for directory selection is not yet implemented. It seems likely this
+ * could be done on Windows platforms using CFileDialog, and perhaps on MacOS
+ * using System.setProperty("apple.awt.fileDialogForDirectories", "true"),
+ * otherwise falling back to Swing's JFileChooser as a last restort.
+ */
 public class XFileDialog
 {
-    private Frame parent=null; 
-    private static JFileChooser failsafe; 
 
-   // the five basic functions provided in XFileDialog  
-   enum Mode {
-		LOAD_FILE("Select File", 0), LOAD_FOLDER("Select Folder", 0),
-		LOAD_FILES("Select Files", 0), LOAD_FOLDERS("Select Folders", 0), SAVE_FILE("Save File", 1);
-		String name;
-		int nativeMode;
-		Mode(String name, int nativeMode) {
-			this.name = name;
-			this.nativeMode = nativeMode;
-		}
-	} 
+  public static final int LOAD = FileDialog.LOAD;
+  public static final int SAVE = FileDialog.SAVE;
 
-    // Two flags 
-    private static boolean initOnce=false; 
-    private static boolean nativeEnabled=false; 
+  private Window parent; // can be Dialog or Frame
+  private String title;
+  private int mode; // LOAD or SAVE
+  private String initialDir, resultDir;
+  private boolean multiSelection;
+  private ArrayList<FilenameFilter> filters = new ArrayList<>();
+  private String initialFile, resultFile;
+  private File[] resultFiles = new File[0];
+  private boolean attemptWindowsJNI = true;
 
+  // 0 = initializing, 1 = displaying, 2 = closed
+  private int state;
 
-    // Tracing flag
-    // tracing is always ON by default, 
-    // if you do not like the trace info, 
-    // call XFileDialog.setTraceLevel(0); 
-    //
-    private static int traceLevel=1;  
+  private static int traceLevel = 0; // for debugging
 
+  private static Object lock = new Object();
+  private static boolean initialized; // protected by lock during initialization
+  private static boolean hasWindowsJNI; // protected by lock during initialization
+  
 
-    public native void initWithWindowTitle(String windowtitle); 
-    public native void initWithJAWT(Frame c, String javahome); 
+  /**
+   * Set debug tracing level. Use 0 to disable all debug printing. Higher
+   * numbers enable more debug printing.
+   */
+  public static void setTraceLevel(int val) {
+    traceLevel = val;
+  }
 
-    private String nativefilters=""; 
+  /**
+   * Print debug message at the given level.
+   */
+  private static void trace(int level, String msg) {
+    if (traceLevel >= level)
+      System.out.println("XFileDialog: " + msg); 
+  }
 
-    public String getDirectory() 
-    {
-	if(nativeEnabled) 
-	{	
-	byte[] result = getDirectory2(); 
-	return byteArray2String(result); 	
-	} 
-	else return failsafe.getCurrentDirectory().getAbsolutePath(); 
-    }
-    public native byte[] getDirectory2(); 
+  /**
+   * Internal initialization, protected by lock, includes internal guard to
+   * protect against multiple initialization. This should be called before
+   * using the hasWindowsJNI variable.
+   */
+  private static void initialize() {
+    synchronized (lock) {
+      if (initialized)
+        return;
+      initialized = true;
+      String osname = System.getProperty("os.name", "generic");
+      if (!osname.toLowerCase().contains("windows")) {
+        trace(1, "Falling back to AWT FileDialog on non-windows platform " + osname);
+        return;
+      }
+      String arch = System.getProperty("os.arch", "generic");
+      String lib = arch.contains("64") ? "xfiledialog-x64" : "xfiledialog-x86";
+      trace(1, "Attempting to load " + arch + " native library for " + osname + " platform");
+      trace(2, "Searching java.library.path: " + System.getProperty("java.library.path", "(empty)"));
 
-    public void setDirectory(String path) 
-    {
-	    if(path==null) return; 
-
-	    if(nativeEnabled) setDirectory2(path); 
-	    else failsafe.setCurrentDirectory(new File(path)); 
-    }
-    public native void setDirectory2(String path); 
-
-
-
-    // save file dialog 
-    public String getSaveFile() 
-    {
-
-	if(nativeEnabled) 
-	{
-	// selectmode is determined automatically according to 
-	// the caller function, 
-	//
-	// Otherwise, it may be misleading as some features are not 
-	// implemented yet. 
-	// 
-	//
-	setMode2(FileDialog.SAVE); 	
-	byte[]	result = getFile2();  
-	return byteArray2String(result);  
-	}
-	else 
-	{
-		setJavaSelectionMode(Mode.SAVE_FILE);
-		showJavaDialog(parent, Mode.SAVE_FILE);
-		File temp = failsafe.getSelectedFile(); 
-		if(temp!=null) return temp.getName(); 
-		else return null; 
-	}
-
-    }
-
-    // Always return the relative filename 
-    public String getFile() 
-    {
-	if(nativeEnabled) 
-	{
-	setMode2(FileDialog.LOAD); 		
-	byte[]	result = getFile2();  
-	return byteArray2String(result);  
-	}
-	else 
-	{
-		setJavaSelectionMode(Mode.LOAD_FILE);
-		showJavaDialog(parent, Mode.LOAD_FILE);
-		File temp = failsafe.getSelectedFile(); 
-		if(temp!=null) return temp.getName(); 
-		else return null; 
-	}
-    }
-
-    // Return the absolute path of a folder 
-    public String getFolder() 
-    {
-	if(nativeEnabled) 
-	{
-	setMode2(FileDialog.LOAD); 		
-	byte[]	result = getFolder2();  
-	return byteArray2String(result);  
-	}
-	else 
-	{
-
-		setJavaSelectionMode(Mode.LOAD_FOLDER);
-		showJavaDialog(parent, Mode.LOAD_FOLDER);
-		File temp = failsafe.getSelectedFile(); 
-		if(temp!=null) return temp.getAbsolutePath(); 
-		else return null; 
-
-	}
-    }
-
-    // Return the absolute path of folders 
-    public String[] getFolders() 
-    {
-	if(nativeEnabled) 
-	{
-	setMode2(FileDialog.LOAD); 	
-	byte[][] result = getFolders2(); 	    
-
-	String[] strs= null; 
-
-	if(result!=null) 
-	{
-	int length = result.length; 
-	trace("JNI>>: " + length + " folders selected"); 
-
-	strs = new String[length]; 
-	for(int i=0;i<length;i++) 
-	{
-	strs[i] = byteArray2String(result[i]); 
-	}
-	}
-	return strs; 
-
-	}
-	else 
-	{
-
-		setJavaSelectionMode(Mode.LOAD_FOLDERS);
-		showJavaDialog(parent, Mode.LOAD_FOLDERS);
-
-	File[] temp1 = failsafe.getSelectedFiles(); 
-	if(temp1==null) return null; 
-	else 
-		{
-		String[] temp2= new String[temp1.length]; 
-		for(int i=0;i<temp1.length;i++) temp2[i]= temp1[i].getAbsolutePath(); 	
-		return temp2; 
-		}
-
-
-	}
-    }
-
-    public native byte[] getFile2(); 
-
-    public native byte[] getFolder2(); 
-
-    public native byte[][] getFolders2(); 
-
-    public native void setMode2(int mode); 
-    public native int getMode2(); 
-
-    // Always return an array of relatie filenames 
-    public String[] getFiles()
-    {
-	if(nativeEnabled) 
-	{	
-	byte[][] result = getFiles2(); 	    
-	String[] strs= null; 
-	
-
-	if(result!=null) 
-	{
-	String parentDir = getDirectory(); 
-	int trimheading= parentDir.length(); 
-
-	int length = result.length; 
-	trace("JNI>>: " + length + " files selected"); 
-
-	strs = new String[length]; 
-	for(int i=0;i<length;i++) 
-	{
-	strs[i] = byteArray2String(result[i]); 
-	strs[i]= strs[i].substring(trimheading); 
-
-	}
-	}
-	return strs; 
-	}
-	else 
-	{
-
-	setJavaSelectionMode(Mode.LOAD_FILES);
-	showJavaDialog(parent, Mode.LOAD_FILES);
-
-	File[] temp1 = failsafe.getSelectedFiles(); 
-	if(temp1==null) return null; 
-	else 
-		{
-		String[] temp2= new String[temp1.length]; 
-		for(int i=0;i<temp1.length;i++) temp2[i]= temp1[i].getName(); 	
-		return temp2; 
-		}
-
-	}
-
-    }
-
-    public native byte[][] getFiles2(); 
-
-
-    // this method is more flexible than my early implementation 
-     public void resetFilters() 
-     {
-	      if (nativeEnabled) 
-	      {
-		nativefilters=""; // reset internal native filters
-	      }
-	      else 
-	      {
-		// reset the filechooser at first 
-	        failsafe.resetChoosableFileFilters(); 
-	      }
-
-     }
-
-      public void addFilters(ExtensionsFilter... filters) 
+      try
       {
-
-
-	      if (nativeEnabled) 
-	      {
-			String filterStr = ExtensionsFilter.getNativeString(filters);
-			nativefilters += filterStr; 
-			trace("JNI>>: nativefilters: " + nativefilters); 
-			setFilters2(nativefilters + "|"); 
-			// add "|" at the end 
-		}
-		else 
-		{
-			for (ExtensionsFilter extensionsFilter : filters) 
-			{
-				failsafe.addChoosableFileFilter(extensionsFilter);
-			}
-		}
+        System.loadLibrary(lib);
+        int err = nativeWindowsInitialize(
+            traceLevel,
+            System.getProperty("java.home"));
+        if (err != 0)
+          throw new Exception("err " + err);
+        hasWindowsJNI = true;
+      } catch (UnsatisfiedLinkError e) {
+        trace(1, "Could not load native library " + lib + ".dll");
+        trace(1, "Falling back to AWT FileDialog due to library failure");
+        if (traceLevel >= 2)
+          e.printStackTrace();
+      } catch (Exception e) {
+        trace(1, "Could not initialize native library " + lib + ".dll: " + e.getMessage());
+        trace(1, "Falling back to AWT FileDialog due to library failure");
+        if (traceLevel >= 2)
+          e.printStackTrace();
+      }
     }
-    
+  }
 
-    public native void setFilters2(String filterstr);     
-    
-    public String getTitle() 
+  /**
+   * Determine if native Windows support is available.
+   */
+  public static boolean hasNativeWindows() {
+    initialize();
+    return hasWindowsJNI;
+  }
+
+  /**
+   * Construct an XFileDialog using the given parent.
+   */
+  public XFileDialog(Dialog parent)
+  {
+    this.parent = parent;
+    this.mode = LOAD;
+  }
+
+  /**
+   * Construct an XFileDialog using the given parent and title.
+   */
+  public XFileDialog(Dialog parent, String title)
+  {
+    this.parent = parent;
+    this.title = title;
+    this.mode = LOAD;
+  }
+
+  /**
+   * Construct an XFileDialog using the given parent, title, and mode
+   */
+  public XFileDialog(Dialog parent, String title, int mode)
+  {
+    this.parent = parent;
+    this.title = title;
+    setMode(mode);
+  }
+
+  /**
+   * Construct an XFileDialog using the given parent.
+   */
+  public XFileDialog(Frame parent)
+  {
+    this.parent = parent;
+    this.mode = LOAD;
+  }
+
+  /**
+   * Construct an XFileDialog using the given parent and title.
+   */
+  public XFileDialog(Frame parent, String title)
+  {
+    this.parent = parent;
+    this.title = title;
+    this.mode = LOAD;
+  }
+
+  /**
+   * Construct an XFileDialog using the given parent, title, and mode
+   */
+  public XFileDialog(Frame parent, String title, int mode)
+  {
+    this.parent = parent;
+    this.title = title;
+    setMode(mode);
+  }
+
+  // Set the title for this load/save dialog.
+  public void setTitle(String title) { this.title = title; }
+
+  // Set the initial directory for this load/save dialog.
+  public void setDirectory(String dir) { initialDir = dir; }
+
+  // Set the initial file for this load/save dialog.
+  public void setFile(String file) { initialFile = file; }
+
+  // Enable or disable multi-file selection.
+  public void setMultipleMode(boolean enable) { multiSelection = enable; }
+
+  // Set the mode for this dialog.
+  public void setMode(int mode) {
+    if (mode != LOAD && mode != SAVE)
+      throw new IllegalArgumentException("mode must be either LOAD or SAVE");
+    this.mode = mode;
+  }
+
+  // Get a description of the current state of this load/save dialog.
+  public String paramString() {
+    if (state == 0) return "initializing";
+    else if (state == 1) return "displaying";
+    else return "closed";
+  }
+
+  // Get multi-file selection status.
+  public boolean isMultipleMode() { return multiSelection; }
+
+  // Get mode.
+  public int getMode() { return mode; }
+
+  // Get title.
+  public String getTitle() { return title; }
+
+  // Add to the list of filters that determine acceptable file names. For
+  // Windows platforms, only FilterByExtension filters will be used, all other
+  // filter objects will be ignored.
+  public void addFilenameFilter(FilenameFilter filter) {
+    if (filter == null)
+      throw new NullPointerException("filter must not be null");
+    filters.add(filter);
+  }
+
+  // Remove filter from list that determines acceptable file names.
+  public boolean removeFilenameFilter(FilenameFilter filter) {
+    return filters.remove(filter);
+  }
+
+  // Remove all filters from list that determines acceptable file names.
+  public void resetFilenameFilters() {
+    filters.clear();
+  }
+
+  // Get list that determines acceptable file names.
+  public FilenameFilter[] getFilenameFilters() {
+    FilenameFilter[] arr = new FilenameFilter[filters.size()];
+    for (int i = 0; i < arr.length; i++)
+      arr[i] = filters.get(i);
+    return arr;
+  }
+
+  // Does nothing, but present for compatibility with java.awt.FileDialog.
+  public void addNotify() { }
+
+  // Enable or disable windows JNI.
+  public void attemptNativeWindows(boolean enable) {
+    attemptWindowsJNI = enable;
+  }
+
+  // setVisible(true) displays the dialog and blocks until the user closes the
+  // dialog. setVisible(false) does nothing, but is present for compatibility
+  // with java.awt.FileDialog.
+  public void setVisible(boolean visible) {
+    if (!visible)
+      return;
+    if (state != 0)
+      throw new IllegalStateException("XFileDialog.setVisible(true) already invoked");
+
+    if (attemptWindowsJNI)
+      initialize();
+
+    state = 1;
+
+    if (hasWindowsJNI && attemptWindowsJNI) {
+      // if (parent != null)
+      //   parent.setIgnoreRepaint(false); // ???
+
+      String defaultExtension = null;
+      if (initialFile != null) {
+        int i = initialFile.lastIndexOf('.');
+        if (i > 0 && i < initialFile.length()-1)
+          defaultExtension = initialFile.substring(i+1);
+      }
+
+      String[] ret = nativeWindowsFileDialog(
+          traceLevel,
+          parent,
+          title,
+          mode == LOAD,
+          multiSelection,
+          FilterByExtension.getWindowsDescription(getFilenameFilters()),
+          defaultExtension,
+          initialDir,
+          initialFile);
+
+      state = 2;
+      if (ret != null && ret.length >= 2) {
+        // dir, filename, filename2, ...
+        resultDir = ret[0];
+        resultFile = ret[1];
+        resultFiles = new File[ret.length-1];
+        for (int i = 1; i < ret.length; i++) {
+          resultFiles[i-1] = new File(ret[0], ret[i]);
+        }
+      }
+
+    } else {
+
+      FileDialog dlg;
+      if (parent instanceof Frame)
+        dlg = new FileDialog((Frame)parent, title, mode);
+      else
+        dlg = new FileDialog((Dialog)parent, title, mode);
+
+      dlg.setMultipleMode(multiSelection);
+      if (initialDir != null)
+        dlg.setDirectory(initialDir);
+      if (initialFile != null)
+        dlg.setFile(initialFile);
+      if (filters.size() > 0)
+        dlg.setFilenameFilter(new MultiFilter(getFilenameFilters()));
+
+      dlg.setVisible(true);
+
+      state = 2;
+      // if (multiSelection) {
+      resultFiles = dlg.getFiles();
+      // } else {
+      resultFile = dlg.getFile();
+      // }
+      resultDir = dlg.getDirectory();
+    }
+
+  }
+
+  // Get result directory, if any, after setVisible(true), or original directory
+  // if called before then.
+  public String getDirectory() {
+    return state < 2 ? initialDir : resultDir;
+  }
+
+  // Get result file, if any, after setVisible(true), or null if called before
+  // then.
+  public String getFile() {
+    return resultFile;
+  }
+
+  // Get result array of zero or more result files, if any, after
+  // setVisible(true), or empty array if called before then.
+  public File[] getFiles() {
+    if (resultFiles.length == 0)
+      return resultFiles;
+    File[] ret = new File[resultFiles.length];
+    for (int i = 0; i < resultFiles.length; i++)
+      ret[i] = resultFiles[i];
+    return ret;
+  }
+
+  // Initialization for Windows native CFileDialog implementation.
+  private static native int nativeWindowsInitialize(
+      int traceLevel,
+      String javaHome);
+
+  // Entry point for Windows native CFileDialog implementation.
+  private native String[] nativeWindowsFileDialog(
+      int traceLevel,
+      Window parent,
+      String title,
+      boolean isLoad,
+      boolean isMulti,
+      String filter,
+      String extension,
+      String initialDir,
+      String initialFile);
+
+
+  /**
+   * FilterByExtension implements extension-based file name filtering. This
+   * should work on Windows platforms (using the native Windows load/save
+   * dialog) and on other platforms (using java.awt.FileDialog). Other
+   * FilenameFilter implementations will not work on Windows platforms, as they
+   * support only extension-based filtering.
+   *
+   * NOTE: It may be possible that Windows supports generic wildcard matching,
+   * such as "filename.*" instead of only "*.ext", but currently only the latter
+   * is implemented here.
+   */
+  public static final class FilterByExtension implements FilenameFilter
+  {
+    private final String name;
+    private final ArrayList<String> extensions;
+
+    /**
+     * Construct a FilenameFilter that accepts files with one of the given
+     * extensions.
+     * Any directory is also accepted.
+     * @param name - a name for this filter, e.g. "Image Files".
+     * @param extension - one or more extensions, e.g. "jpg", "png", "*".
+     *
+     * The extensions should not include wildcards or special characters, except
+     * "*" may be used by itself to match all file extensions.
+     *
+     * If no extensions are given, or if "*" is given as an allowed extension,
+     * then all files will be accepted.
+     *
+     * On Windows, typically file names are case insensitive and matching will
+     * be done on a case insensitive basis by the native Windows load/save
+     * dialog.
+     *
+     * On other platforms, this filter explicitly uses case insenstive matches
+     * regardless of whether the underlying system uses case sensitive or case
+     * insenstive file names.
+     */
+    public FilterByExtension(String name, String... extension)
     {
-	if(nativeEnabled) 
-	{	
-	byte[] result = getTitle2(); 
-        return byteArray2String(result); 	
-	} 
-	else 
-	{
-	return failsafe.getDialogTitle(); 	
-	}
-    }
-    public native byte[] getTitle2(); 
+      this.name = name;
 
-    public void setTitle(String title) 
+      extensions = new ArrayList<>();
+      for (String ext : extension)
+        extensions.add(ext);
+      if (extensions.size() == 0)
+        extensions.add("*");
+    }
+
+    /**
+     * Return the name of this filter, for example, "Image Files".
+     */
+    public String getName() {
+      return name;
+    }
+
+    /**
+     * Return a description of this filter, for example,
+     * "Image Files (*.png, *.jpg, *.jpeg)".
+     */
+    public String getDescription() {
+      String description = name + " (*." + extensions.get(0);
+      for (int i = 1; i < extensions.size(); i++)
+        description += ", *." + extensions.get(i);
+      description += ")"; 
+      return description;
+    }
+
+    /**
+     * Return a description of this filter suitable for use by the native
+     * Windows file load/save dialog, for example,
+     * "Image Files (*.png, *.jpg, *.jpeg)|*.png;*.jpg;*.jpeg"
+     */
+    public String getWindowsDescription() {
+      String win = getDescription() + "|";
+      win += "*."+extensions.get(0).toLowerCase();
+      for (int i = 1; i < extensions.size(); i++)
+        win += ";*." + extensions.get(i).toLowerCase();
+      return win;
+    }
+
+    /**
+     * Check if a given directory/file pair matches one of the allowed
+     * extensions.
+     * @param dir - The directory in which the file was found.
+     * @param name - The name of the file.
+     * @return true iff the name matches one fo the allowed extensions.
+     */
+    @Override
+    public boolean accept(File dir, String name) {
+      if (name == null || name.length() == 0)
+        return true;
+      File f = new File(dir, name);
+      if (f.isDirectory())
+        return true;
+      String lname = name.toLowerCase();
+      for (String ext : extensions) {
+        if (ext.equals("*") || lname.endsWith("."+ext.toLowerCase()))
+          return true;
+      }
+      return false;
+    }
+
+    /**
+     * Return a description of a list of filters suitable for use by the native
+     * Windows file load/save dialog. This is a concatenation of each filter's
+     * description, separated by "|", and ending with "||". For example:
+     * "Image Files (*.jpg, *.jpeg)|*.jpg;*.jpeg|All Files (*.*)|*.*||"
+     *
+     * Only FilterByExtension objects in the list are used, all other
+     * FilenameFilter objects in the list are ignored.
+     *
+     * If the list is empty or does not contain any FilterByExtension objects,
+     * null is returned instead.
+     */ 
+    public static String getWindowsDescription(FilenameFilter... filters) 
     {
-	    if(title==null) return; 
-	   if(nativeEnabled) setTitle2(title); 
-	   else failsafe.setDialogTitle(title);  
+      String win = "";
+      for (FilenameFilter f : filters) {
+        if (!(f instanceof FilterByExtension))
+          continue;
+        win += ((FilterByExtension)f).getWindowsDescription() + "|";
+      }
+      return win.length() > 0 ? win + "|" : null;
     }
 
-    public native void setTitle2(String title); 
+  } // end of FilterByExtension
 
-
-    public void setThumbnail(boolean val)
-    {
-	    if(nativeEnabled)
-	    {
-	    if(val) setThumbnail2(1); 
-	    else setThumbnail2(0); 
-	    }
-	    else 
-	    {
-	    trace("JNI>>: Thumbnail is not supported in JFileChooser"); 	    
-	    }
+  /**
+   * MultiFilter implements filtering using a list of filters to do the actual
+   * work. This is needed for platforms that only accept a single filter.
+   */
+  private static final class MultiFilter implements FilenameFilter
+  {
+    private FilenameFilter[] filters;
+    private MultiFilter(FilenameFilter[] f) { filters = f; }
+    @Override
+    public boolean accept(File dir, String name) {
+      for (FilenameFilter f : filters) {
+        if (f.accept(dir, name))
+          return true;
+      }
+      return false;
     }
-
-    public native void setThumbnail2(int val); 
-
-    public static void setTraceLevel(int val)
-    {
-	    System.out.println("Set XFileDialog traceLevel: " + val); 	    
-	    traceLevel= val; 
-
-	    initClass();  // DLL should be loaded at first 
-
-	    if(nativeEnabled)
-	    {
-		setTraceLevel2(val); 
-	    }
-	    else 
-	    {
-	    trace("JNI>>: setTraceLevel is not supported in JFileChooser"); 	    
-	    }
-    }
-
-    public static native void setTraceLevel2(int val); 
-
-    public void dispose() 
-    {
-    }
-
-    public native void refreshFrame(); 
-
-
-
-    private static void initClass() {
-
-     if(initOnce) 
-     {
-	     // reset failsafe when not native enabled
-	     if(!nativeEnabled) 
-	     {
-	     failsafe.resetChoosableFileFilters(); 
-	     failsafe.setDialogTitle(null);  
-	     failsafe.setMultiSelectionEnabled(false); 
-	     }
-     return; 
-     }
-
-     trace("JNI>>: java.library.path:" + System.getProperty("java.library.path")); 	     
-     try
-     {
-     if(System.getProperty("os.arch").indexOf("64") >=0) 
-     {
-     trace("JNI>>: Loading X64 (amd64) DLL"); 	     
-     System.loadLibrary("xfiledialog64"); 
-     }
-     else 
-     {
-     trace("JNI>>: Loading X86 32bit DLL"); 	      
-     System.loadLibrary("xfiledialog"); 
-     }
-
-     nativeEnabled=true; 
-     } catch(UnsatisfiedLinkError e) 
-     {
-     e.printStackTrace(); 
-
-     if(System.getProperty("os.arch").indexOf("64") >=0) 
-     trace("JNI>>: The xfiledialog64.dll (AMD64) can not be loaded."); 
-     else 
-     trace("JNI>>: The xfiledialog.dll can not be loaded."); 
-
-     trace("JNI>>: JFileChooser will be used instead."); 
-     nativeEnabled=false; 
-     }
-
-     if(!nativeEnabled)
-     {
-	failsafe = new JFileChooser(); 
-     }
-     // use JFileChooser if init fails
-
-     initOnce=true; 
-    }
-    
-
-    public XFileDialog(Frame parent)
-    {
-	String windowtitle = null; 
-	this.parent= parent; 
-
-	initClass(); 
-
-	if(parent!=null) windowtitle= parent.getTitle(); 
-	if(parent!=null) parent.setIgnoreRepaint(false);  // prevent error
-
-	// solution2: find the correct window handele with jawt/awt 
-	if(nativeEnabled) 
-	{
-	String javahome= System.getProperty("java.home"); 
-	initWithJAWT(parent, javahome); 
-	nativefilters="";  // always reset native filter str in constructor
-
-	trace("JNI>>: Init dialog with JAWT "); 
-	
-	}
-
-    }
-
-   public XFileDialog(String windowtitle)
-    {
-	initClass(); 
-	if(nativeEnabled) 
-	{
-		initWithWindowTitle(windowtitle); 	
-		trace("JNI>>: Init dialog with Window title: " + windowtitle); 
-	}
-    }
-
-    public String byteArray2String(byte[] data) 
-    {
-	    if(data==null) return null; 
-	    if(data.length==0) return null; 
-
-	    String str=null; 
-
-	    // Windows Unicode is actually UTF-16 
-	    //
-	    // the best way is : 
-	    // use UTF-16 to decode the byteArray and get the internal 
-	    // String.  
-	    //
-	    // At the same time, the C code must return a Unicode byteArray
-	    // i.e. the C code must be compiled with Unicode turned on 
-	    //
-
-	    try{
-	    str = new String(data, "UTF-16"); 
-//	    trace("JNI>>: " + str); 
-	    } catch(Exception e) {e.printStackTrace(); }
-	    return str; 
-
-    }
-
-    public static void trace(String val)
-    {
-
-	if(traceLevel> 0)
-	{
-		System.out.println(val); 
-	}
-	else 
-	{
-		// do nothing 
-	}
-
-    }
-
-
-private void setJavaSelectionMode(Mode mode) 
-	{
-	switch (mode) 
-		{
-		case LOAD_FILE:
-		case SAVE_FILE:
-			failsafe.setFileSelectionMode(JFileChooser.FILES_ONLY);
-			failsafe.setMultiSelectionEnabled(false);
-		break;
-		case LOAD_FOLDER:
-			failsafe.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-			failsafe.setMultiSelectionEnabled(false);
-		break;
-		case LOAD_FILES:
-			failsafe.setFileSelectionMode(JFileChooser.FILES_ONLY);
-			failsafe.setMultiSelectionEnabled(true);
-		break;
-		case LOAD_FOLDERS:
-			failsafe.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-			failsafe.setMultiSelectionEnabled(true);
-		}
-	}
-
-private void showJavaDialog(Frame component, Mode mode) {
-		switch (mode) {
-			case LOAD_FILE:
-			case LOAD_FILES:
-			case LOAD_FOLDER:
-			case LOAD_FOLDERS:
-				failsafe.showOpenDialog(component);
-				break;
-			case SAVE_FILE:
-				failsafe.showSaveDialog(component);
-		}
-	}
+  }
 
 }
-
 

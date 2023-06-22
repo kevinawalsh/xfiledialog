@@ -7,133 +7,25 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#undef net_tomahawk_XFileDialog_LOAD
+#define net_tomahawk_XFileDialog_LOAD 0L
+#undef net_tomahawk_XFileDialog_SAVE
+#define net_tomahawk_XFileDialog_SAVE 1L
 /*
  * Class:     net_tomahawk_XFileDialog
- * Method:    initWithWindowTitle
- * Signature: (Ljava/lang/String;)V
+ * Method:    nativeWindowsInitialize
+ * Signature: (ILjava/lang/String;)I
  */
-JNIEXPORT void JNICALL Java_net_tomahawk_XFileDialog_initWithWindowTitle
-  (JNIEnv *, jobject, jstring);
+JNIEXPORT jint JNICALL Java_net_tomahawk_XFileDialog_nativeWindowsInitialize
+  (JNIEnv *, jclass, jint, jstring);
 
 /*
  * Class:     net_tomahawk_XFileDialog
- * Method:    initWithJAWT
- * Signature: (Ljava/awt/Frame;Ljava/lang/String;)V
+ * Method:    nativeWindowsFileDialog
+ * Signature: (ILjava/awt/Window;Ljava/lang/String;ZZLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)[Ljava/lang/String;
  */
-JNIEXPORT void JNICALL Java_net_tomahawk_XFileDialog_initWithJAWT
-  (JNIEnv *, jobject, jobject, jstring);
-
-/*
- * Class:     net_tomahawk_XFileDialog
- * Method:    getDirectory2
- * Signature: ()[B
- */
-JNIEXPORT jbyteArray JNICALL Java_net_tomahawk_XFileDialog_getDirectory2
-  (JNIEnv *, jobject);
-
-/*
- * Class:     net_tomahawk_XFileDialog
- * Method:    setDirectory2
- * Signature: (Ljava/lang/String;)V
- */
-JNIEXPORT void JNICALL Java_net_tomahawk_XFileDialog_setDirectory2
-  (JNIEnv *, jobject, jstring);
-
-/*
- * Class:     net_tomahawk_XFileDialog
- * Method:    getFile2
- * Signature: ()[B
- */
-JNIEXPORT jbyteArray JNICALL Java_net_tomahawk_XFileDialog_getFile2
-  (JNIEnv *, jobject);
-
-/*
- * Class:     net_tomahawk_XFileDialog
- * Method:    getFolder2
- * Signature: ()[B
- */
-JNIEXPORT jbyteArray JNICALL Java_net_tomahawk_XFileDialog_getFolder2
-  (JNIEnv *, jobject);
-
-/*
- * Class:     net_tomahawk_XFileDialog
- * Method:    getFolders2
- * Signature: ()[[B
- */
-JNIEXPORT jobjectArray JNICALL Java_net_tomahawk_XFileDialog_getFolders2
-  (JNIEnv *, jobject);
-
-/*
- * Class:     net_tomahawk_XFileDialog
- * Method:    setMode2
- * Signature: (I)V
- */
-JNIEXPORT void JNICALL Java_net_tomahawk_XFileDialog_setMode2
-  (JNIEnv *, jobject, jint);
-
-/*
- * Class:     net_tomahawk_XFileDialog
- * Method:    getMode2
- * Signature: ()I
- */
-JNIEXPORT jint JNICALL Java_net_tomahawk_XFileDialog_getMode2
-  (JNIEnv *, jobject);
-
-/*
- * Class:     net_tomahawk_XFileDialog
- * Method:    getFiles2
- * Signature: ()[[B
- */
-JNIEXPORT jobjectArray JNICALL Java_net_tomahawk_XFileDialog_getFiles2
-  (JNIEnv *, jobject);
-
-/*
- * Class:     net_tomahawk_XFileDialog
- * Method:    setFilters2
- * Signature: (Ljava/lang/String;)V
- */
-JNIEXPORT void JNICALL Java_net_tomahawk_XFileDialog_setFilters2
-  (JNIEnv *, jobject, jstring);
-
-/*
- * Class:     net_tomahawk_XFileDialog
- * Method:    getTitle2
- * Signature: ()[B
- */
-JNIEXPORT jbyteArray JNICALL Java_net_tomahawk_XFileDialog_getTitle2
-  (JNIEnv *, jobject);
-
-/*
- * Class:     net_tomahawk_XFileDialog
- * Method:    setTitle2
- * Signature: (Ljava/lang/String;)V
- */
-JNIEXPORT void JNICALL Java_net_tomahawk_XFileDialog_setTitle2
-  (JNIEnv *, jobject, jstring);
-
-/*
- * Class:     net_tomahawk_XFileDialog
- * Method:    setThumbnail2
- * Signature: (I)V
- */
-JNIEXPORT void JNICALL Java_net_tomahawk_XFileDialog_setThumbnail2
-  (JNIEnv *, jobject, jint);
-
-/*
- * Class:     net_tomahawk_XFileDialog
- * Method:    setTraceLevel2
- * Signature: (I)V
- */
-JNIEXPORT void JNICALL Java_net_tomahawk_XFileDialog_setTraceLevel2
-  (JNIEnv *, jclass, jint);
-
-/*
- * Class:     net_tomahawk_XFileDialog
- * Method:    refreshFrame
- * Signature: ()V
- */
-JNIEXPORT void JNICALL Java_net_tomahawk_XFileDialog_refreshFrame
-  (JNIEnv *, jobject);
+JNIEXPORT jobjectArray JNICALL Java_net_tomahawk_XFileDialog_nativeWindowsFileDialog
+  (JNIEnv *, jobject, jint, jobject, jstring, jboolean, jboolean, jstring, jstring, jstring, jstring);
 
 #ifdef __cplusplus
 }
