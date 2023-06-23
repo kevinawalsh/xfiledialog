@@ -215,8 +215,8 @@ public class XFileDialog
   public String getTitle() { return title; }
 
   // Add to the list of filters that determine acceptable file names. For
-  // Windows platforms, only FilterByExtension filters will be used, all other
-  // filter objects will be ignored.
+  // Windows platforms, only ExtensionBasedFilter filters will be used, all
+  // other filter objects will be ignored.
   public void addFilenameFilter(FilenameFilter filter) {
     if (filter == null)
       throw new NullPointerException("filter must not be null");
@@ -280,7 +280,7 @@ public class XFileDialog
           title,
           mode == LOAD,
           multiSelection,
-          FilterByExtension.getWindowsDescription(getFilenameFilters()),
+          ExtensionBasedFilter.getWindowsDescription(getFilenameFilters()),
           defaultExtension,
           initialDir,
           initialFile);
@@ -365,29 +365,65 @@ public class XFileDialog
       String initialDir,
       String initialFile);
 
-
   /**
-   * FilterByExtension implements extension-based file name filtering. This
-   * should work on Windows platforms (using the native Windows load/save
-   * dialog) and on other platforms (using java.awt.FileDialog). Other
-   * FilenameFilter implementations will not work on Windows platforms, as they
-   * support only extension-based filtering.
+   * ExtensionBasedFilter is a FilenameFilter that relies only on filename
+   * extensions to determine acceptability. These can be used on Windows
+   * platforms (using the native Windows load/save dialog) and on other
+   * platforms (using java.awt.FileDialog). Other FilenameFilter implementations
+   * are not supported with native Windows load/save dialogs.
    *
    * NOTE: It may be possible that Windows supports generic wildcard matching,
    * such as "filename.*" instead of only "*.ext", but currently only the latter
    * is implemented here.
    */
-  public static final class FilterByExtension implements FilenameFilter
-  {
-    private final String name;
-    private final ArrayList<String> extensions;
+  public static interface ExtensionBasedFilter extends FilenameFilter {
 
     /**
-     * Construct a FilenameFilter that accepts files with one of the given
-     * extensions.
-     * Any directory is also accepted.
+     * Return a description of this filter suitable for use by the native
+     * Windows file load/save dialog, for example,
+     * "Image Files (*.png, *.jpg, *.jpeg)|*.png;*.jpg;*.jpeg"
+     */
+    public String getWindowsDescription();
+
+    /**
+     * Return a description of a list of filters suitable for use by the native
+     * Windows file load/save dialog. This is a concatenation of each filter's
+     * description, separated by "|", and ending with "||". For example:
+     * "Image Files (*.jpg, *.jpeg)|*.jpg;*.jpeg|All Files (*.*)|*.*||"
+     *
+     * Only ExtensionBasedFilter objects in the list are used, all other
+     * FilenameFilter objects in the list are ignored.
+     *
+     * If the list is empty or does not contain any ExtensionBasedFilter
+     * objects, null is returned instead.
+     */ 
+    public static String getWindowsDescription(FilenameFilter... filters) 
+    {
+      String win = "";
+      for (FilenameFilter f : filters) {
+        if (!(f instanceof ExtensionBasedFilter))
+          continue;
+        win += ((ExtensionBasedFilter)f).getWindowsDescription() + "|";
+      }
+      return win.length() > 0 ? win + "|" : null;
+    }
+
+  } // end of ExtensionBasedFilter
+
+  /**
+   * Filter implements extension-based file name filtering.
+   */
+  public static class Filter implements ExtensionBasedFilter
+  {
+    protected String name;
+    protected ArrayList<String> extensions;
+
+    /**
+     * Construct a Filter that accepts files with one of the given extensions,
+     * or any directory.
      * @param name - a name for this filter, e.g. "Image Files".
-     * @param extension - one or more extensions, e.g. "jpg", "png", "*".
+     * @param extension - one or more extensions, e.g. "jpg", "png", "*". A
+     * leading dot, if present, is removed.
      *
      * The extensions should not include wildcards or special characters, except
      * "*" may be used by itself to match all file extensions.
@@ -403,13 +439,16 @@ public class XFileDialog
      * regardless of whether the underlying system uses case sensitive or case
      * insenstive file names.
      */
-    public FilterByExtension(String name, String... extension)
+    public Filter(String name, String... extension)
     {
       this.name = name;
 
       extensions = new ArrayList<>();
-      for (String ext : extension)
+      for (String ext : extension) {
+        if (ext.startsWith("."))
+          ext = ext.substring(1);
         extensions.add(ext);
+      }
       if (extensions.size() == 0)
         extensions.add("*");
     }
@@ -426,7 +465,7 @@ public class XFileDialog
      * "Image Files (*.png, *.jpg, *.jpeg)".
      */
     public String getDescription() {
-      String description = name + " (*." + extensions.get(0);
+      String description = getName() + " (*." + extensions.get(0);
       for (int i = 1; i < extensions.size(); i++)
         description += ", *." + extensions.get(i);
       description += ")"; 
@@ -438,6 +477,7 @@ public class XFileDialog
      * Windows file load/save dialog, for example,
      * "Image Files (*.png, *.jpg, *.jpeg)|*.png;*.jpg;*.jpeg"
      */
+    @Override
     public String getWindowsDescription() {
       String win = getDescription() + "|";
       win += "*."+extensions.get(0).toLowerCase();
@@ -468,30 +508,7 @@ public class XFileDialog
       return false;
     }
 
-    /**
-     * Return a description of a list of filters suitable for use by the native
-     * Windows file load/save dialog. This is a concatenation of each filter's
-     * description, separated by "|", and ending with "||". For example:
-     * "Image Files (*.jpg, *.jpeg)|*.jpg;*.jpeg|All Files (*.*)|*.*||"
-     *
-     * Only FilterByExtension objects in the list are used, all other
-     * FilenameFilter objects in the list are ignored.
-     *
-     * If the list is empty or does not contain any FilterByExtension objects,
-     * null is returned instead.
-     */ 
-    public static String getWindowsDescription(FilenameFilter... filters) 
-    {
-      String win = "";
-      for (FilenameFilter f : filters) {
-        if (!(f instanceof FilterByExtension))
-          continue;
-        win += ((FilterByExtension)f).getWindowsDescription() + "|";
-      }
-      return win.length() > 0 ? win + "|" : null;
-    }
-
-  } // end of FilterByExtension
+  } // end of Filter
 
   /**
    * MultiFilter implements filtering using a list of filters to do the actual
