@@ -34,7 +34,7 @@ public class XFileDialog
   public static final int LOAD = FileDialog.LOAD;
   public static final int SAVE = FileDialog.SAVE;
 
-  private Window parent; // can be Dialog or Frame
+  private Window parent; // must be Dialog or Frame, or can be null
   private String title;
   private int mode; // LOAD or SAVE
   private String initialDir, resultDir;
@@ -299,6 +299,7 @@ public class XFileDialog
     } else {
 
       FileDialog dlg;
+      System.out.println("parent is " + parent);
       if (parent instanceof Frame)
         dlg = new FileDialog((Frame)parent, title, mode);
       else
@@ -495,12 +496,21 @@ public class XFileDialog
      */
     @Override
     public boolean accept(File dir, String name) {
-      if (name == null || name.length() == 0)
+      return name == null || name.length() == 0 || accept(new File(dir, name));
+    }
+
+    /**
+     * Check if a given file or directory matches one of the allowed
+     * extensions.
+     * @param path - The file or directory.
+     * @return true iff the name matches one fo the allowed extensions.
+     */
+    public boolean accept(File path) {
+      if (path == null)
+        return false;
+      if (path.isDirectory())
         return true;
-      File f = new File(dir, name);
-      if (f.isDirectory())
-        return true;
-      String lname = name.toLowerCase();
+      String lname = path.getName().toLowerCase();
       for (String ext : extensions) {
         if (ext.equals("*") || lname.endsWith("."+ext.toLowerCase()))
           return true;

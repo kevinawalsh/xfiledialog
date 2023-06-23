@@ -1,0 +1,6 @@
+Name: XFileDialog
+Implementation-Build-Date: Fri 23 Jun 2023 10:23:51 AM EDT
+Implementation-Title: XFileDialog
+Implementation-Vendor: Kevin Walsh
+Implementation-Version: 1.0.1
+Built-By: Kevin Walsh <kwalsh@holycross.edu>

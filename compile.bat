@@ -1,10 +1,8 @@
 @rem Tested using Adoptium's JDK 17 and Visual Studio Community 2022.
 
 @rem Before running this batch file, you need to change the file paths below to
-@rem match your java and Visual Studio install directories. Additionally, you
-@rem must configure your windows command shell for compiling for x86 using
-@rem cl.exe, e.g. by running:
-@rem "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat"
+@rem match your java and Visual Studio install directories. Also update the
+@rem manifest.txt file the appropriate date, version, and user.
 
 @rem set JAVA_HOME=C:\Program Files\AdoptOpenJDK\temurin-17.0.7_7-hotspot\
 @rem set VS_VARS=C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat
@@ -18,6 +16,7 @@
 @echo JAVA_HOME: %JAVA_HOME%
 @echo VS_VARS : %VS_VARS%
 @echo VS_MSVC : %VS_MSVC%
+@echo manifest: ..\manifest.txt
 @echo ==========================
 
 @echo *
@@ -45,7 +44,7 @@
 @echo *
 @echo Package jar
 @cd src_java
-@jar cvf ..\xfiledialog.jar net
+@jar cvfm ..\xfiledialog.jar ..\manifest.txt net
 @cd ..
 
 @echo *

@@ -194,10 +194,16 @@ JNIEXPORT jobjectArray JNICALL Java_net_tomahawk_XFileDialog_nativeWindowsFileDi
 {
   trace(1, _T("Preparing CFileDialog\n"));
   
-  HWND hParentWnd = GetWindowHandleFromAWT(env, traceLevel, j_parent);
-  if (!hParentWnd)
-    return NULL;
-  CWnd *pParentWnd = CWnd::FromHandle(hParentWnd); // temporary, freed automatically?
+  CWnd *pParentWnd = NULL;
+  if (j_parent != NULL) {
+    HWND hParentWnd = GetWindowHandleFromAWT(env, traceLevel, j_parent);
+    if (!hParentWnd) {
+      trace(1, _T("Parent window not found. Ignoring error.\n"));
+      //  return NULL;
+    } else {
+      pParentWnd = CWnd::FromHandle(hParentWnd); // temporary, freed automatically?
+    }
+  }
 
   LPCWSTR title = getString(env, j_title);
   LPCWSTR extension = getString(env, j_extension);
@@ -218,7 +224,7 @@ JNIEXPORT jobjectArray JNICALL Java_net_tomahawk_XFileDialog_nativeWindowsFileDi
   DWORD resultlen = isMulti ? MAX_PATH * MAX_MULTIFILE_SELECTION : MAX_PATH;
   LPWSTR result = new WCHAR[resultlen];
   if (initialFile)
-    wcscpy(result, initialFile);
+    wcscpy_s(result, resultlen, initialFile);
   else
     result[0] = 0x0000;
 
