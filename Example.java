@@ -3,19 +3,22 @@
 
 import net.tomahawk.XFileDialog;
 
-import java.io.File;
 import java.awt.BorderLayout;
 import java.awt.Button;
+import java.awt.Component;
 import java.awt.Dialog;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Frame;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.io.File;
 import javax.swing.*;
 
 class Example extends JFrame
 {
 
-  String[] parents = { "Dialog", "Frame", "null" };
+  String[] parents = { "Dialog", "Frame", "Component", "null" };
 
   private JSpinner iTrace = new JSpinner();
   private JCheckBox cNative = new JCheckBox();
@@ -134,25 +137,56 @@ class Example extends JFrame
 
   private void doDialog(int mode, boolean multi) {
     if (dParent.getSelectedItem().equals("Frame")) {
-      doDialog(mode, multi, this, null);
+      doDialog(mode, multi, this);
     } else if (dParent.getSelectedItem().equals("null")) {
-      doDialog(mode, multi, null, null);
+      doDialog(mode, multi, null);
     } else if (dParent.getSelectedItem().equals("Dialog")) {
       Dialog parent = new Dialog(this, "Example Dialog", true);
-      parent.setLayout(new FlowLayout());
+      parent.setLayout(null);
       Button b = new Button("Click Me");
-      b.addActionListener(e -> {
-        doDialog(mode, multi, null, parent);
-        parent.setVisible(false);
-        parent.dispose();
-      });
+      b.addActionListener(e -> doDialog(mode, multi, parent));
+      b.setBounds(100, 100, 100, 100);
       parent.add(b);
-      parent.setSize(300, 200);
+      parent.addWindowListener( new WindowAdapter() {
+        @Override
+        public void windowClosing(WindowEvent we) {
+          parent.setVisible(false);
+          parent.dispose();
+        }
+      });
+      parent.setSize(300, 300);
+      parent.setVisible(true);
+    } else if (dParent.getSelectedItem().equals("Component")) {
+      Dialog parent = new Dialog(this, "Example Dialog", true);
+      parent.setLayout(null);
+      parent.setSize(1000, 800);
+      Button[] bs = new Button[] {
+            new Button("Top Left"),
+            new Button("Top Right"),
+            new Button("Bottom Left"),
+            new Button("Bottom Right"),
+            new Button("Center") };
+      bs[0].setBounds(20, 40, 100, 100);
+      bs[1].setBounds(880, 40, 100, 100);
+      bs[2].setBounds(20, 680, 100, 100);
+      bs[3].setBounds(880, 680, 100, 100);
+      bs[4].setBounds(450, 350, 100, 100);
+      for (Button b : bs) {
+        b.addActionListener(e -> doDialog(mode, multi, b));
+        parent.add(b);
+      }
+      parent.addWindowListener( new WindowAdapter() {
+        @Override
+        public void windowClosing(WindowEvent we) {
+          parent.setVisible(false);
+          parent.dispose();
+        }
+      });
       parent.setVisible(true);
     }
   }
 
-  private void doDialog(int mode, boolean multi, Frame parentFrame, Dialog parentDialog) {
+  private void doDialog(int mode, boolean multi, Component parent) {
 
     tResults.setText("");
 
@@ -167,13 +201,7 @@ class Example extends JFrame
     if (initialFile.equalsIgnoreCase("null"))
       initialFile = null;
 
-    XFileDialog dlg;
-    if (parentFrame != null)
-      dlg = new XFileDialog(parentFrame, title);
-    else if (parentDialog != null)
-      dlg = new XFileDialog(parentDialog, title);
-    else
-      dlg = new XFileDialog((Frame)null, title); // dlg = new XFileDialog(title);
+    XFileDialog dlg = new XFileDialog(parent, title);
     dlg.attemptNativeWindows(useNative);
     dlg.setDirectory(initialDir);
     dlg.setFile(initialFile);

@@ -1,5 +1,6 @@
 package net.tomahawk; 
 
+import java.awt.Component;
 import java.awt.Dialog;
 import java.awt.FileDialog;
 import java.awt.Frame;
@@ -7,6 +8,7 @@ import java.awt.Window;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.util.ArrayList;
+import javax.swing.SwingUtilities;
 
 /**
  * XFileDialog provides a file load/save dialog using a native UI on Windows,
@@ -34,7 +36,15 @@ public class XFileDialog
   public static final int LOAD = FileDialog.LOAD;
   public static final int SAVE = FileDialog.SAVE;
 
-  private Window parent; // must be Dialog or Frame, or can be null
+  // parent is used for constructing the Windows CDialog, and sometimes for
+  // constructing an AWT dialog when the native Windows dialog is not available.
+  // In some situations, parent is also used for positioning the dialog.
+  private Window parent;
+
+  // relative is used for positioning when no parent is available and for
+  // platforms that don't properly use the parent for positioning.
+  private Component relative;
+
   private String title;
   private int mode; // LOAD or SAVE
   private String initialDir, resultDir;
@@ -129,60 +139,41 @@ public class XFileDialog
   /**
    * Construct an XFileDialog using the given parent.
    */
-  public XFileDialog(Dialog parent)
-  {
-    this.parent = parent;
-    this.mode = LOAD;
+  public XFileDialog(Component parent) {
+    this(parent, null, LOAD);
   }
 
   /**
    * Construct an XFileDialog using the given parent and title.
    */
-  public XFileDialog(Dialog parent, String title)
-  {
-    this.parent = parent;
-    this.title = title;
-    this.mode = LOAD;
+  public XFileDialog(Component parent, String title) {
+    this(parent, title, LOAD);
   }
 
   /**
-   * Construct an XFileDialog using the given parent, title, and mode
+   * Construct an XFileDialog using the given parent, title, and mode.
+   * @param parent - Typically a Dialog or Frame, used as the owner and for
+   * positioning the dialog. The parent can also be any other component, in
+   * which case the window ancestor of the component, if it exists, will be used
+   * as the owner, and the component itself will be used for positioning. Can
+   * also be null, in which case the dialog will be centered on the screen if
+   * possible.
    */
-  public XFileDialog(Dialog parent, String title, int mode)
-  {
-    this.parent = parent;
-    this.title = title;
-    setMode(mode);
-  }
-
-  /**
-   * Construct an XFileDialog using the given parent.
-   */
-  public XFileDialog(Frame parent)
-  {
-    this.parent = parent;
-    this.mode = LOAD;
-  }
-
-  /**
-   * Construct an XFileDialog using the given parent and title.
-   */
-  public XFileDialog(Frame parent, String title)
-  {
-    this.parent = parent;
-    this.title = title;
-    this.mode = LOAD;
-  }
-
-  /**
-   * Construct an XFileDialog using the given parent, title, and mode
-   */
-  public XFileDialog(Frame parent, String title, int mode)
-  {
-    this.parent = parent;
+  public XFileDialog(Component parent, String title, int mode) {
+    if (parent instanceof Window) {
+      this.parent = (Window)parent;
+      this.relative = null;
+    } else if (parent != null) {
+      this.parent = SwingUtilities.getWindowAncestor(parent);
+      this.relative = parent;
+    } else {
+      this.parent = null;
+      this.relative = null;
+    }
     this.title = title;
     setMode(mode);
   }
+
 
   // Set the title for this load/save dialog.
   public void setTitle(String title) { this.title = title; }
@@ -343,14 +334,14 @@ public class XFileDialog
         dlg.pack();
         dlg.setSize(600, 600);
         dlg.validate();
-        Window root = parent;
-        while (root != null && !root.isShowing())
-          root = root.getOwner();
-        // Windows AWT setLocationRelativeTo(null) uses top-left instead of
+        // Window root = parent;
+        // while (root != null && !root.isShowing())
+        //   root = root.getOwner();
+        // BUG: Windows AWT setLocationRelativeTo(null) uses top-left instead of
         // center of screen, and Linux AWT setLocationRelativeTo(non-null) is
-        // slightly off-center. But these are close enough, and the other cases
-        // work correctly.
-        dlg.setLocationRelativeTo(root);
+        // slightly off-center. But these are close enough for now, and the
+        // other cases correctly center the window over the relative or parent.
+        dlg.setLocationRelativeTo(relative != null ? relative : parent);
       }
 
       dlg.setVisible(true);
