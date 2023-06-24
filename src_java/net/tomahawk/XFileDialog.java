@@ -1,11 +1,8 @@
 package net.tomahawk; 
 
 import java.awt.Dialog;
-import java.awt.Dimension;
 import java.awt.FileDialog;
 import java.awt.Frame;
-import java.awt.Point;
-import java.awt.Rectangle;
 import java.awt.Window;
 import java.io.File;
 import java.io.FilenameFilter;
