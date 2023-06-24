@@ -334,13 +334,11 @@ public class XFileDialog
         dlg.pack();
         dlg.setSize(600, 600);
         dlg.validate();
-        // Window root = parent;
-        // while (root != null && !root.isShowing())
-        //   root = root.getOwner();
-        // BUG: Windows AWT setLocationRelativeTo(null) uses top-left instead of
-        // center of screen, and Linux AWT setLocationRelativeTo(non-null) is
-        // slightly off-center. But these are close enough for now, and the
-        // other cases correctly center the window over the relative or parent.
+        // BUG: Windows AWT uses top-level regardless of any attempts to
+        // reposition the dialog. Linux AWT setLocationRelativeTo() also seems
+        // slightly off-center in some cases. But these are close enough for
+        // now, and the other cases correctly center the window over the
+        // relative or parent.
         dlg.setLocationRelativeTo(relative != null ? relative : parent);
       }
 
