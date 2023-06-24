@@ -1,9 +1,12 @@
 package net.tomahawk; 
 
-import java.awt.Window;
 import java.awt.Dialog;
-import java.awt.Frame;
+import java.awt.Dimension;
 import java.awt.FileDialog;
+import java.awt.Frame;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.Window;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.util.ArrayList;
@@ -52,7 +55,8 @@ public class XFileDialog
   private static Object lock = new Object();
   private static boolean initialized; // protected by lock during initialization
   private static boolean hasWindowsJNI; // protected by lock during initialization
-  
+  private static boolean isWindows; // protected by lock during initialization
+  private static boolean isMacOS; // protected by lock during initialization
 
   /**
    * Set debug tracing level. Use 0 to disable all debug printing. Higher
@@ -81,7 +85,11 @@ public class XFileDialog
         return;
       initialized = true;
       String osname = System.getProperty("os.name", "generic");
-      if (!osname.toLowerCase().contains("windows")) {
+
+      isWindows = osname.toLowerCase().startsWith("windows");
+      isMacOS = osname.toLowerCase().startsWith("mac");
+
+      if (!isWindows) {
         trace(1, "Falling back to AWT FileDialog on non-windows platform " + osname);
         return;
       }
@@ -264,8 +272,6 @@ public class XFileDialog
     state = 1;
 
     if (hasWindowsJNI && attemptWindowsJNI) {
-      // if (parent != null)
-      //   parent.setIgnoreRepaint(false); // ???
 
       String defaultExtension = null;
       if (initialFile != null) {
@@ -273,6 +279,16 @@ public class XFileDialog
         if (i > 0 && i < initialFile.length()-1)
           defaultExtension = initialFile.substring(i+1);
       }
+
+      // Note: Normally, native Windows code will center the dialog over the
+      // parent, which seems to be typical for the Windows UI, so we do not
+      // adjust this position.
+      //
+      // Using null for the parent works fine with native Windows dialog as
+      // well, but the position in that case is not ideal... it seems to be
+      // placed near top-left corner of screen. There does not appear to be an
+      // easy way to fix that case, so we make no attempt to reposition the
+      // window in this case. 
 
       String[] ret = nativeWindowsFileDialog(
           traceLevel,
@@ -298,12 +314,14 @@ public class XFileDialog
 
     } else {
 
+      // Note: null parent works fine with AWT on all platforms.
       FileDialog dlg;
-      System.out.println("parent is " + parent);
       if (parent instanceof Frame)
         dlg = new FileDialog((Frame)parent, title, mode);
-      else
+      else if (parent instanceof Dialog)
         dlg = new FileDialog((Dialog)parent, title, mode);
+      else
+        dlg = new FileDialog((Frame)null, title, mode);
 
       dlg.setMultipleMode(multiSelection);
       if (initialDir != null)
@@ -312,6 +330,31 @@ public class XFileDialog
         dlg.setFile(initialFile);
       if (filters.size() > 0)
         dlg.setFilenameFilter(new MultiFilter(getFilenameFilters()));
+
+      // Note: AWT on MacOS seems to center the dialog on the screen, regardless
+      // of whether parent is null or non-null. This seems typical for MacOS UI,
+      // so we make no attempt to reposition the dialog for MacOS.
+      //
+      // AWT on other platforms (Linux, Windows) places the dialog in the top
+      // left corner or some other non-ideal location. If parent is non-null
+      // with multiple displays on Linux, AWT at least places the dialog on the
+      // same screen as the parent, but with Windows or with a null parent on
+      // either platform, the dialog ends up on the default screen. In these
+      // cases, we try to reposition the dialog.
+
+      if (!isMacOS) {
+        dlg.pack();
+        dlg.setSize(600, 600);
+        dlg.validate();
+        Window root = parent;
+        while (root != null && !root.isShowing())
+          root = root.getOwner();
+        // Windows AWT setLocationRelativeTo(null) uses top-left instead of
+        // center of screen, and Linux AWT setLocationRelativeTo(non-null) is
+        // slightly off-center. But these are close enough, and the other cases
+        // work correctly.
+        dlg.setLocationRelativeTo(root);
+      }
 
       dlg.setVisible(true);
 
