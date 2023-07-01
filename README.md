@@ -4,7 +4,7 @@ Native windows file load/save dialog for Java/Swing.
 ## Deprecation Warning
 
 This package is not recommended for use.
-Use (BetterFileDialog)[https://github.com/kevinawalsh/betterfiledialog] instead.
+Use [BetterFileDialog](https://github.com/kevinawalsh/betterfiledialog) instead.
 
 ## Summary
 
