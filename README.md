@@ -1,6 +1,13 @@
 # xfiledialog
 Native windows file load/save dialog for Java/Swing.
 
+## Deprecation Warning
+
+This package is not recommended for use.
+Use (BetterFileDialog)[https://github.com/kevinawalsh/betterfiledialog] instead.
+
+## Summary
+
 `net.tomahawk.XFileDialog` is a light-weight Java binding for native file
 load/save dialog on Windows platforms (using JNI), with a fallback to AWT
 dialogs on other platforms. This is is meant to provide a workaround for a
